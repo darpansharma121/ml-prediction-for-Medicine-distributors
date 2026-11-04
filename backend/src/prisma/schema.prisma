@@ -1,0 +1,370 @@
+// Prisma Schema for MediFlow AI
+// Database models for pharmaceutical supply-chain management
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum ProductCategory {
+  TABLETS
+  CAPSULES
+  SYRUPS
+  SUSPENSIONS
+}
+
+enum ProductStatus {
+  ACTIVE
+  DISCONTINUED
+  LIMITED_AVAILABILITY
+}
+
+enum InventoryStatus {
+  HEALTHY
+  LOW_STOCK
+  CRITICAL
+  EXCESS
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum DeliveryStatus {
+  SCHEDULED
+  IN_TRANSIT
+  DELIVERED
+  DELAYED
+  FAILED
+}
+
+enum RecommendationPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum RecommendationType {
+  REPLENISHMENT
+  TRANSFER
+  EXPIRY_ALERT
+}
+
+enum RecommendationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum UserRole {
+  ADMIN
+  SUPPLY_CHAIN_MANAGER
+  DISTRIBUTION_MANAGER
+  DISTRIBUTOR
+  STOCKIST
+  RETAILER
+}
+
+// Models
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  passwordHash   String
+  name           String
+  role           UserRole     @default(DISTRIBUTOR)
+  locationId     String?
+  location       Location?    @relation(fields: [locationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("users")
+}
+
+model Location {
+  id              String         @id @default(uuid())
+  name            String
+  district        String
+  state           String
+  type            String         // "DISTRICT" | "CITY" | "TOWN"
+  users           User[]
+  inventoryItems  Inventory[]
+  sales           Sale[]
+  distributors    Distributor[]
+  deliveriesFrom  Delivery[]     @relation("from_location")
+  deliveriesTo    Delivery[]     @relation("to_location")
+  forecasts       Forecast[]
+  recommendations Recommendation[]
+  transfersOut    InventoryTransfer[] @relation("source_location")
+  transfersIn     InventoryTransfer[] @relation("target_location")
+  batches         Batch[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("locations")
+  @@unique([name, district])
+}
+
+model Distributor {
+  id              String         @id @default(uuid())
+  name            String
+  code            String         @unique
+  locationId      String
+  location        Location       @relation(fields: [locationId], references: [id])
+  contactPerson   String?
+  contactPhone    String?
+  email           String?
+  inventory       Inventory[]
+  orders          Order[]
+  deliveries      Delivery[]
+  sales           Sale[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("distributors")
+}
+
+model Product {
+  id                String         @id @default(uuid())
+  sku               String         @unique
+  name              String
+  category          ProductCategory
+  dosageForm        String
+  unitOfMeasurement String
+  shelfLifeDays     Int
+  minimumStockThreshold Int
+  baseDemand        Float          @default(0)
+  status            ProductStatus  @default(ACTIVE)
+  batches           Batch[]
+  inventory         Inventory[]
+  sales             Sale[]
+  forecasts         Forecast[]
+  orderItems        OrderItem[]
+  recommendations   Recommendation[]
+  transfers         InventoryTransfer[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@map("products")
+}
+
+model Batch {
+  id               String     @id @default(uuid())
+  batchNumber      String
+  productId        String
+  product          Product    @relation(fields: [productId], references: [id])
+  locationId       String
+  location         Location   @relation(fields: [locationId], references: [id])
+  quantity         Int
+  manufacturedAt   DateTime
+  expiresAt        DateTime
+  remainingShelfLife Int
+  costPerUnit      Decimal    @db.Decimal(10, 2)
+  status           String      @default("ACTIVE")
+  inventory        Inventory[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@map("batches")
+  @@unique([batchNumber, productId])
+  @@index([expiresAt])
+}
+
+model Inventory {
+  id               String     @id @default(uuid())
+  locationId       String
+  location         Location   @relation(fields: [locationId], references: [id])
+  productId        String
+  product          Product    @relation(fields: [productId], references: [id])
+  distributorId    String
+  distributor      Distributor @relation(fields: [distributorId], references: [id])
+  batchId          String?
+  batch            Batch?     @relation(fields: [batchId], references: [id])
+  quantity         Int
+  incomingQuantity Int         @default(0)
+  reorderPoint     Int         @default(0)
+  status           InventoryStatus @default(HEALTHY)
+  lastUpdated      DateTime   @default(now())
+  transactions     InventoryTransaction[]
+
+  @@map("inventory")
+  @@unique([locationId, productId, distributorId])
+  @@index([status])
+}
+
+model InventoryTransaction {
+  id              String     @id @default(uuid())
+  inventoryId     String
+  inventory       Inventory  @relation(fields: [inventoryId], references: [id])
+  type            String     // "RECEIPT" | "SALE" | "RETURN" | "TRANSFER" | "ADJUSTMENT"
+  quantity        Int
+  transactionDate DateTime   @default(now())
+  reference       String?
+  notes           String?
+
+  @@map("inventory_transactions")
+  @@index([transactionDate])
+}
+
+model Sale {
+  id            String     @id @default(uuid())
+  productId     String
+  product       Product    @relation(fields: [productId], references: [id])
+  locationId    String
+  location      Location   @relation(fields: [locationId], references: [id])
+  distributorId String?
+  distributor   Distributor? @relation(fields: [distributorId], references: [id])
+  quantity      Int
+  saleDate      DateTime   @default(now())
+  revenue       Decimal    @db.Decimal(12, 2)
+
+  @@map("sales")
+  @@index([saleDate])
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  distributorId    String
+  distributor      Distributor @relation(fields: [distributorId], references: [id])
+  status           OrderStatus @default(PENDING)
+  totalAmount      Decimal     @db.Decimal(12, 2)
+  orderDate        DateTime   @default(now())
+  expectedDelivery DateTime?
+  actualDelivery   DateTime?
+  items            OrderItem[]
+  deliveries       Delivery[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@map("orders")
+  @@index([status])
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id])
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+model Delivery {
+  id              String        @id @default(uuid())
+  orderId         String?
+  order           Order?        @relation(fields: [orderId], references: [id])
+  fromLocationId  String
+  fromLocation    Location      @relation("from_location", fields: [fromLocationId], references: [id])
+  toLocationId    String
+  toLocation      Location      @relation("to_location", fields: [toLocationId], references: [id])
+  distributorId   String
+  distributor     Distributor   @relation(fields: [distributorId], references: [id])
+  status          DeliveryStatus @default(SCHEDULED)
+  scheduledAt     DateTime
+  deliveredAt     DateTime?
+  actualDeliveryTime Int? // minutes
+  trackingNumber  String?
+
+  @@map("deliveries")
+  @@index([status])
+  @@index([toLocationId])
+}
+
+model Forecast {
+  id                String    @id @default(uuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id])
+  locationId        String
+  location          Location  @relation(fields: [locationId], references: [id])
+  model             String    // "MOVING_AVERAGE" | "XGBOOST"
+  horizon           Int
+  forecastDate      DateTime  @default(now())
+  predictions       Json      // JSON array of {date, predicted_demand}
+  metrics           Json      // JSON object with wape, mae, rmse, etc.
+  accuracy          Float?    // overall accuracy score
+
+  @@map("forecasts")
+  @@index([forecastDate])
+}
+
+model Recommendation {
+  id              String               @id @default(uuid())
+  type            RecommendationType
+  priority        RecommendationPriority
+  status          RecommendationStatus @default(PENDING)
+  productId       String
+  product         Product              @relation(fields: [productId], references: [id])
+  locationId      String
+  location        Location             @relation(fields: [locationId], references: [id])
+  currentInventory Int
+  predictedDemand  Int
+  reorderPoint     Int
+  incomingStock    Int
+  recommendedQty   Int
+  transferFrom     String? // Location ID
+  explanation      String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@map("recommendations")
+  @@index([status])
+  @@index([createdAt])
+}
+
+model InventoryTransfer {
+  id             String      @id @default(uuid())
+  sourceLocationId String
+  sourceLocation   Location   @relation("source_location", fields: [sourceLocationId], references: [id])
+  targetLocationId String
+  targetLocation   Location   @relation("target_location", fields: [targetLocationId], references: [id])
+  productId       String
+  product         Product    @relation(fields: [productId], references: [id])
+  quantity        Int
+  status          String      @default("PENDING")
+  requestedAt     DateTime   @default(now())
+  approvedAt      DateTime?
+  completedAt     DateTime?
+  notes           String?
+
+  @@map("inventory_transfers")
+  @@index([status])
+}
+
+model Notification {
+  id          String     @id @default(uuid())
+  userId      String
+  type        String     // "INVENTORY_ALERT" | "EXPIRY_ALERT" | "REPLENISHMENT" | "TRANSFER"
+  message     String
+  isRead      Boolean    @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@map("notifications")
+  @@index([isRead])
+}
+
+model SystemMetric {
+  id           String    @id @default(uuid())
+  metricName   String
+  metricValue  Decimal   @db.Decimal(20, 5)
+  metricUnit   String?
+  recordedAt   DateTime @default(now())
+
+  @@map("system_metrics")
+  @@index([recordedAt])
+}
