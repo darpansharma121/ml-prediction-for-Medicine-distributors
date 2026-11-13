@@ -1,5 +1,5 @@
-import { PrismaClient } from '../generated/prisma'
-import { User } from '../generated/prisma'
+import { PrismaClient } from '../generated/client'
+import { User } from '../generated/client'
 
 export class DatabaseService {
   private prisma: PrismaClient
@@ -201,7 +201,7 @@ export class DatabaseService {
   async findCriticalInventory(): Promise<any[]> {
     return this.prisma.inventory.findMany({
       where: { status: 'CRITICAL' },
-      include {
+      include: {
         location: true,
         product: true,
         distributor: true
@@ -353,3 +353,6 @@ export class DatabaseService {
     return this.prisma.$transaction()
   }
 }
+
+export default DatabaseService
+export const db = new DatabaseService()

@@ -1,10 +1,9 @@
-import { Request, Response } from 'express'
+import { Request, Response, Router } from 'express'
 import { z, ZodError } from 'zod'
-import { DatabaseService } from '../services/DatabaseService'
-import { generateToken } from '../utils/jwt'
+import DatabaseService from '../services/DatabaseService'
 import { generateToken } from '../utils/jwt'
 
-const authRouter = require('express').Router()
+const authRouter = Router()
 
 // Validation schemas
 const registerSchema = z.object({

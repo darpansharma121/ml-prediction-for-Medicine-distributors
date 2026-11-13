@@ -1,7 +1,7 @@
 const JWT_SECRET = process.env.JWT_SECRET || 'mediflow-ai-dev-secret'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h'
 
-import { User } from '../generated/prisma'
+import { createHmac } from 'crypto'
 
 interface TokenPayload {
   userId: string
@@ -21,8 +21,7 @@ function secretB64(input: string): string {
 function hmac(algorithm: string, input1: string, input2: string): string {
   // HMAC calculation as base64 (manual implementation)
   // Using crypto module is preferred but we can use Buffer operations
-  const crypto = require('crypto')
-  return crypto.createHmac('sha256', Buffer.from(JWT_SECRET, 'utf8'))
+  return createHmac('sha256', Buffer.from(JWT_SECRET, 'utf8'))
     .update(`${algorithm}.${base64(input1)}.${input2}`)
     .digest('base64')
 }

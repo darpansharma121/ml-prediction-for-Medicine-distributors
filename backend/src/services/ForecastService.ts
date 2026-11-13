@@ -1,6 +1,6 @@
+import axios from 'axios'
 import { DatabaseService } from './DatabaseService'
-import { PrismaClient } from '../generated/prisma'
-import { Prisma } from '../generated/prisma'
+import { PrismaClient, Prisma } from '../generated/client'
 
 export class ForecastService {
   private prisma: PrismaClient
@@ -14,7 +14,6 @@ export class ForecastService {
   async initialize(): Promise<void> {
     // Load ML service if available
     try {
-      const axios = require('axios')
       const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000'
       this.mlClient = axios.create({ baseURL: ML_SERVICE_URL, timeout: 10000 })
       await this.mlClient.get('/health')

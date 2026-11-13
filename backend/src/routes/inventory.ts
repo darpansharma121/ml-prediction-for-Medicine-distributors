@@ -2,7 +2,9 @@ import { Request, Response } from 'express'
 import { z } from 'zod'
 import DatabaseService from '../services/DatabaseService'
 
-const router = require('express').Router()
+import { Router } from 'express'
+
+const router = Router()
 
 const inventorySchema = z.object({
   locationId: z.string().min(1),

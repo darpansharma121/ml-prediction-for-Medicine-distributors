@@ -1,7 +1,9 @@
 import { Request, Response } from 'express'
 import DatabaseService from '../services/DatabaseService'
 
-const router = require('express').Router()
+import { Router } from 'express'
+
+const router = Router()
 
 // Main dashboard summary
 router.get('/summary', async (req: any, res: Response) => {
@@ -40,7 +42,7 @@ router.get('/summary', async (req: any, res: Response) => {
 // KPI details
 router.get('/kpi', async (req: any, res: Response) => {
   try {
-    const [totalSKUs, totalDistributors, totalInventoryValue, productsAtStockOutRisk, excessInventoryValue, expiryRiskValue] = await Promise.all([
+    const [totalSKUs, totalDistributors, totalInventory, productsAtStockOutRisk, excessInventory, expiryRiskBatches] = await Promise.all([
       DatabaseService.prisma.product.count(),
       DatabaseService.prisma.distributor.count(),
       DatabaseService.prisma.inventory.findMany({ include: { product: true, distributor: true } }),
@@ -56,8 +58,8 @@ router.get('/kpi', async (req: any, res: Response) => {
       })
     ])
 
-    const totalInventoryValue = excessInventoryValue.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0)
-    const expiryRiskValue = expiryRiskValue.length * 10 // Estimate based on per-unit cost
+    const totalInventoryValue = excessInventory.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0)
+    const expiryRiskValue = expiryRiskBatches.length * 10 // Estimate based on per-unit cost
 
     return res.json({
       success: true,
@@ -68,7 +70,7 @@ router.get('/kpi', async (req: any, res: Response) => {
           { name: 'Available Inventory', value: totalInventoryValue, unit: 'USD', icon: 'package', category: 'inventory' },
           { name: 'Products at Stock-out Risk', value: productsAtStockOutRisk, unit: '', icon: 'alert-triangle', category: 'risk' },
           { name: 'Excess Inventory Value', value: Math.round(totalInventoryValue), unit: 'USD', icon: 'trending-down', category: 'efficiency' },
-          { name: 'Expiry Risk Batches', value: expiryRiskValue.length, unit: '', icon: 'timer', category: 'risk' },
+          { name: 'Expiry Risk Batches', value: expiryRiskValue / 10, unit: '', icon: 'timer', category: 'risk' },
           { name: 'Pending Recommendations', value: 0, unit: '', icon: 'check-circle', category: 'action' },
           { name: 'Order Fulfilment Rate', value: 92, unit: '%', icon: 'check', category: 'operations' }
         ],

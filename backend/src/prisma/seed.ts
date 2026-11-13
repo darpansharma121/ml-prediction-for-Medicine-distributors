@@ -1,8 +1,7 @@
 // Seed script for MediFlow AI
 // Generates synthetic pharmaceutical distribution data for demonstration
-import { PrismaClient } from '../generated/prisma'
+import { PrismaClient, ProductCategory, ProductStatus, InventoryStatus, UserRole, OrderStatus, DeliveryStatus, RecommendationPriority, RecommendationType, RecommendationStatus } from '../generated/client'
 import { faker } from '@faker-js/faker'
-import { ProductCategory, ProductStatus, InventoryStatus, UserRole, OrderStatus, DeliveryStatus, RecommendationPriority, RecommendationType, RecommendationStatus } from './generated/prisma'
 
 const prisma = new PrismaClient()
 
@@ -388,6 +387,3 @@ async function main() {
 }
 
 main()
-
-EOF
-echo "created seed.ts"

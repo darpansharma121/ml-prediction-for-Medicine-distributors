@@ -2,7 +2,9 @@ import { Request, Response } from 'express'
 import { z } from 'zod'
 import DatabaseService from '../services/DatabaseService'
 
-const router = require('express').Router()
+import { Router } from 'express'
+
+const router = Router()
 
 // Get all deliveries
 router.get('/', async (req: any, res: Response) => {
